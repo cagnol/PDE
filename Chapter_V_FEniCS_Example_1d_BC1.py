@@ -1,28 +1,46 @@
-from fenics import *
+from dolfinx import mesh, fem
+from dolfinx.fem.petsc import LinearProblem
+from ufl import dx, grad, dot, TrialFunction, TestFunction
+import numpy as np
 import matplotlib.pyplot as plt
+from mpi4py import MPI
+import basix.ufl
 
-mesh = IntervalMesh (20, 0.0, 1.0)
-V = FunctionSpace (mesh, 'P', 1)
+# Création du maillage 1D
+domain = mesh.create_interval(MPI.COMM_WORLD, 20, [0.0, 1.0])
 
-u_D = Expression('0',degree=0)
+# Création de l'espace de fonctions
+element = basix.ufl.element("P", domain.basix_cell(), 1)
+V = fem.functionspace(domain, element)
 
+# Conditions aux limites
 def boundary(x):
-    tol = 1E-10
-# returns 1 if x[0] is on the boundary, 0 otherwise
-    return abs(x[0])<tol or abs(x[0]-1)<tol
+    return np.logical_or(np.isclose(x[0], 0.0), np.isclose(x[0], 1.0))
 
-bc = DirichletBC (V, u_D, boundary)
+dofs = fem.locate_dofs_geometrical(V, boundary)
+bc = fem.dirichletbc(0.0, dofs, V)
 
+# Formulation variationnelle
 u = TrialFunction(V)
 v = TestFunction(V)
-f = Constant(1.0)
-a = dot(grad(u),grad(v))*dx
-L = f*v*dx
+f = fem.Constant(domain, 1.0)
+a = dot(grad(u), grad(v)) * dx
+L = f * v * dx
 
-u = Function(V)
-solve(a==L, u, bc)
+# Résolution
+problem = LinearProblem(a, L, bcs=[bc], petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
+uh = problem.solve()
 
-plot(u)
-plot(mesh)
+# Récupération des coordonnées des noeuds et des valeurs de la solution
+x = np.linspace(0.0, 1.0, 21)  # 20 intervalles = 21 noeuds
+values = uh.x.array
+
+# Visualisation 1D avec matplotlib
+plt.figure()
+plt.plot(x, values, 'b-', label="Solution u(x)")
+plt.xlabel("x")
+plt.ylabel("u(x)")
+plt.title("Solution du problème 1D")
+plt.legend()
+plt.grid()
 plt.show()
-
