@@ -28,7 +28,8 @@ a = dot(grad(u), grad(v)) * dx
 L = f * v * dx
 
 # Résolution
-problem = LinearProblem(a, L, bcs=[bc], petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
+problem = LinearProblem(a, L, bcs=[bc], petsc_options={"ksp_type": "preonly", "pc_type": "lu"}, petsc_options_prefix="my_problem_")
+
 uh = problem.solve()
 
 # Récupération des coordonnées des noeuds et des valeurs de la solution
